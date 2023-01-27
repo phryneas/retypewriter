@@ -55,8 +55,9 @@ export async function playStart(arg?: TextDocument | Uri) {
     return
   }
 
+  const firstSnap = snaps[0]
   const lastSnap = snaps[snaps.length - 1]
-  if (lastSnap.content !== doc.getText()) {
+  if (firstSnap.content !== doc.getText() && lastSnap.content !== doc.getText()) {
     const take = 'Take Snapshot'
     const discard = 'Discard'
     const cancel = 'Cancel'
