@@ -1,5 +1,5 @@
 import { calculatePatch, diff } from '../state/patch'
-import type { AnimatorStep, Patch, Snapshot } from '../types'
+import type { AnimatorCommand, AnimatorStep, Patch, Snapshot } from '../types'
 import { sliceInput } from './slicing'
 
 export function *patchSteps(input: string, patches: Patch[]): Generator<AnimatorStep> {
@@ -69,42 +69,79 @@ export function *patchSteps(input: string, patches: Patch[]): Generator<Animator
   }
 }
 
-export function *animateSteps(snapshots: Snapshot[]): Generator<AnimatorStep> {
+class ContinueSignal {}
+class BreakSignal {}
+
+export function *animateSteps(snapshots: Snapshot[]): Generator<AnimatorStep, void, AnimatorCommand | undefined> {
   let lastContent: string | undefined
   const copy = [...snapshots]
   for (let index = 0; index < copy.length; index++) {
-    const snap = copy[index]
-    if (lastContent == null) {
-      lastContent = snap.content
-      yield {
-        type: 'init',
-        content: lastContent,
+    function *exec(step: AnimatorStep): Generator<AnimatorStep, void, AnimatorCommand | undefined> {
+      const command = yield step
+      if (command) {
+        yield { type: 'action-noop' }
+        switch (command.type) {
+          case 'command-pause':
+            yield { type: 'action-pause' }
+            break
+          case 'command-stepBack':
+            index--
+            throw new ContinueSignal()
+          case 'command-break':
+            throw new BreakSignal()
+        }
       }
-      continue
     }
 
-    yield {
-      type: 'snap-start',
-      snap,
-      index,
-      total: copy.length,
+    let currentIndex: number | undefined
+    const snap = copy[index]
+    try {
+      try {
+        if (lastContent == null) {
+          lastContent = snap.content
+          yield * exec({
+            type: 'init',
+            content: lastContent,
+          })
+          continue
+        }
+
+        currentIndex = index
+        yield * exec({
+          type: 'snap-start',
+          snap,
+          initialContent: lastContent,
+          index: currentIndex,
+          total: copy.length,
+        })
+
+        const isPasted = snap.options?.paste
+
+        const steps = stepsTo(lastContent, snap.content, isPasted)
+        for (const step of steps)
+          yield * exec(step)
+
+        lastContent = snap.content
+      }
+      finally {
+        if (currentIndex) {
+          yield * exec({
+            type: 'snap-finish',
+            content: snap.content,
+            snap,
+            index: currentIndex,
+            total: copy.length,
+          })
+        }
+      }
     }
-
-    const isPasted = snap.options?.paste
-
-    const steps = stepsTo(lastContent, snap.content, isPasted)
-    for (const step of steps)
-      yield step
-
-    yield {
-      type: 'snap-finish',
-      content: snap.content,
-      snap,
-      index,
-      total: copy.length,
+    catch (e) {
+      if (e instanceof ContinueSignal)
+        continue
+      if (e instanceof BreakSignal)
+        break
+      throw e
     }
-
-    lastContent = snap.content
   }
 }
 

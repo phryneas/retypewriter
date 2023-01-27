@@ -1,41 +1,38 @@
 import type { StatusBarItem, TextDocument, Uri } from 'vscode'
-import { CancellationTokenSource, Range, Selection, StatusBarAlignment, ThemeColor, commands, window } from 'vscode'
+import { Range, Selection, StatusBarAlignment, ThemeColor, commands, window } from 'vscode'
 import type { ControlledPromise } from '@antfu/utils'
 import { createControlledPromise } from '@antfu/utils'
+import type { Snapshots } from 'retypewriter'
 import { manager } from './manager'
 import { resolveDoc } from './utils'
 
-let token: CancellationTokenSource | undefined
+let typewriter: undefined | ReturnType<Snapshots['typewriter']>
 let pausePromise: ControlledPromise<void> | undefined
 let status: StatusBarItem | undefined
 
 export async function playAbort(prompts = false) {
-  if (token) {
-    if (prompts && await window.showInformationMessage('Abort playing?', 'Yes', 'Cancel') !== 'Yes')
-      return
-    continuePause()
-    token.cancel()
-    token = undefined
-    if (status) {
-      status.dispose()
-      status = undefined
-    }
-    updateContext()
-  }
+  if (prompts && await window.showInformationMessage('Abort playing?', 'Yes', 'Cancel') !== 'Yes')
+    return
+  typewriter?.next({ type: 'command-break' })
 }
-
 export function updateContext() {
-  const playing = isPlaying()
-  commands.executeCommand('setContext', 'reTypewriter.isPlaying', playing)
-  commands.executeCommand('setContext', 'reTypewriter.isNotPlaying', !playing)
+  commands.executeCommand('setContext', 'reTypewriter.isPlaying', isPlaying)
+  commands.executeCommand('setContext', 'reTypewriter.isNotPlaying', !isPlaying)
 }
 
 export function isPlaying() {
-  return token !== undefined
+  return typewriter !== undefined
 }
 
 export async function continuePause() {
-  pausePromise?.resolve()
+  if (pausePromise)
+    pausePromise?.resolve()
+  else
+    typewriter?.next({ type: 'command-pause' })
+}
+
+export function stepBack() {
+  typewriter?.next({ type: 'command-stepBack' })
 }
 
 export async function playStart(arg?: TextDocument | Uri) {
@@ -43,7 +40,7 @@ export async function playStart(arg?: TextDocument | Uri) {
   if (!doc || !editor)
     return
 
-  if (token) {
+  if (isPlaying()) {
     window.showErrorMessage('reTypewriter: Already playing')
     return
   }
@@ -84,7 +81,6 @@ export async function playStart(arg?: TextDocument | Uri) {
   let message = `Step 0 of ${total}`
   const spin = '$(loading~spin) '
 
-  token = new CancellationTokenSource()
   status = window.createStatusBarItem(StatusBarAlignment.Left, Infinity)
   status.show()
   updateContext()
@@ -130,14 +126,13 @@ export async function playStart(arg?: TextDocument | Uri) {
 
   updateProgress(0)
 
-  for await (const snap of snaps.typewriter()) {
-    if (!token)
-      break
-    if (token.token.isCancellationRequested)
-      break
+  typewriter = snaps.typewriter()
+
+  for await (const snap of typewriter) {
     switch (snap.type) {
       case 'snap-start':
         updateProgress(snap.index)
+        await editor.edit(edit => edit.replace(new Range(0, 0, Infinity, Infinity), snap.initialContent))
         break
 
       case 'patch-finish':
@@ -179,6 +174,6 @@ export async function playStart(arg?: TextDocument | Uri) {
   }
 
   status?.dispose()
-  token = undefined
+  typewriter = undefined
   updateContext()
 }

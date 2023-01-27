@@ -5,7 +5,7 @@ import { registerAnnonations } from './decoration'
 import { Lens } from './lens'
 import { manager } from './manager'
 import { duplicate, moveDown, moveUp, remove, reverse } from './manipulate'
-import { continuePause, isPlaying, playAbort, playStart, updateContext } from './play'
+import { continuePause, isPlaying, playAbort, playStart, stepBack, updateContext } from './play'
 import { snap } from './record'
 import { langageIds } from './syntaxes'
 import { reveal } from './utils'
@@ -23,6 +23,8 @@ export function activate(ctx: ExtensionContext) {
     commands.registerCommand('retypewriter.play', playStart),
     commands.registerCommand('retypewriter.abort', playAbort),
     commands.registerCommand('retypewriter.continue', continuePause),
+    commands.registerCommand('retypewriter.pause', continuePause),
+    commands.registerCommand('retypewriter.stepBack', stepBack),
     commands.registerCommand('retypewriter.snap-move-up', moveUp),
     commands.registerCommand('retypewriter.snap-move-down', moveDown),
     commands.registerCommand('retypewriter.snap-remove', remove),

@@ -69,6 +69,7 @@ export interface AnimatorStepPatch {
 
 export interface AnimatorStepSnap {
   type: 'snap-start'
+  initialContent: string
   snap: Snapshot
   index: number
   total: number
@@ -91,7 +92,10 @@ export interface AnimatorStepPatchFinish {
 
 export interface AnimatorStepActionPause {
   type: 'action-pause'
-  snap: Snapshot
+}
+
+export interface AnimatorStepActionNoop {
+  type: 'action-noop'
 }
 
 export type AnimatorStep =
@@ -104,6 +108,24 @@ export type AnimatorStep =
   | AnimatorStepSnapFinish
   | AnimatorStepPatchFinish
   | AnimatorStepActionPause
+  | AnimatorStepActionNoop
+
+export interface AnimatorCommandStepBack {
+  type: 'command-stepBack'
+}
+
+export interface AnimatorCommandBreak {
+  type: 'command-break'
+}
+
+export interface AnimatorCommandPause {
+  type: 'command-pause'
+}
+
+export type AnimatorCommand =
+  | AnimatorCommandStepBack
+  | AnimatorCommandBreak
+  | AnimatorCommandPause
 
 export interface ParsedSnaphot {
   raw: string
