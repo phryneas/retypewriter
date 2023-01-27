@@ -21,17 +21,20 @@ export async function *typingAnimator(
     }
   }
 
+  let currentStepOptions = options.defaults ?? {}
+
   for (const step of steps) {
     switch (step.type) {
       case 'init':
         break
       case 'snap-start':
+        currentStepOptions = getOptions(step.snap)
         if (step.index) {
-          const { wait } = getOptions(step.snap)
+          const { wait } = currentStepOptions
 
           await sleep(wait !== undefined ? wait : randRange(700, 1000))
         }
-        if (getOptions(step.snap).pause) {
+        if (currentStepOptions.pause) {
           yield {
             type: 'action-pause',
             snap: step.snap,
@@ -43,7 +46,7 @@ export async function *typingAnimator(
           await sleep(randRange(200, 500))
         break
       case 'insert':
-        await sleep(getTimeout(step.char, 1.2))
+        await sleep(getTimeout(step.char, currentStepOptions.speed ?? 1.2))
         break
       case 'paste':
         await sleep(randRange(100, 200))
