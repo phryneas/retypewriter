@@ -73,6 +73,7 @@ export interface AnimatorStepSnap {
   snap: Snapshot
   index: number
   total: number
+  forcePause: boolean
 }
 
 export interface AnimatorStepSnapFinish {

@@ -13,7 +13,8 @@ let status: StatusBarItem | undefined
 export async function playAbort(prompts = false) {
   if (prompts && await window.showInformationMessage('Abort playing?', 'Yes', 'Cancel') !== 'Yes')
     return
-  typewriter?.next({ type: 'command-break' })
+  typewriter?.throw({ type: 'command-break' })
+  pausePromise?.resolve()
 }
 export function updateContext() {
   commands.executeCommand('setContext', 'reTypewriter.isPlaying', isPlaying)
@@ -28,11 +29,12 @@ export async function continuePause() {
   if (pausePromise)
     pausePromise?.resolve()
   else
-    typewriter?.next({ type: 'command-pause' })
+    typewriter?.throw({ type: 'command-pause' })
 }
 
 export function stepBack() {
-  typewriter?.next({ type: 'command-stepBack' })
+  typewriter?.throw({ type: 'command-stepBack' })
+  pausePromise?.resolve()
 }
 
 export async function playStart(arg?: TextDocument | Uri) {

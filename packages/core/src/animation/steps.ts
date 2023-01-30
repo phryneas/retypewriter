@@ -69,78 +69,82 @@ export function *patchSteps(input: string, patches: Patch[]): Generator<Animator
   }
 }
 
-class ContinueSignal {}
-class BreakSignal {}
-
-export function *animateSteps(snapshots: Snapshot[]): Generator<AnimatorStep, void, AnimatorCommand | undefined> {
-  let lastContent: string | undefined
-  const copy = [...snapshots]
-  for (let index = 0; index < copy.length; index++) {
-    function *exec(step: AnimatorStep): Generator<AnimatorStep, void, AnimatorCommand | undefined> {
-      const command = yield step
-      if (command) {
-        yield { type: 'action-noop' }
-        switch (command.type) {
-          case 'command-pause':
-            yield { type: 'action-pause' }
-            break
-          case 'command-stepBack':
-            index--
-            throw new ContinueSignal()
-          case 'command-break':
-            throw new BreakSignal()
-        }
+function *exec(step: AnimatorStep): Generator<AnimatorStep> {
+  try {
+    yield step
+  }
+  catch (command) {
+    yield { type: 'action-noop' }
+    if (isCommand(command)) {
+      switch (command.type) {
+        case 'command-pause':
+          yield * exec({ type: 'action-pause' })
+          return
       }
+      throw command
     }
+  }
+}
 
-    let currentIndex: number | undefined
-    const snap = copy[index]
+function isCommand(e: unknown): e is AnimatorCommand {
+  return !!e && typeof e === 'object' && 'type' in e && ['command-stepBack', 'command-break', 'command-pause'].includes(e.type as any)
+}
+
+function* animateStep(index: number, total: number, snap: Snapshot, lastContent: string, forcePause: boolean): Generator<AnimatorStep> {
+  yield * exec({
+    type: 'snap-start',
+    snap,
+    initialContent: lastContent,
+    forcePause,
+    index,
+    total,
+  })
+
+  const isPasted = snap.options?.paste
+
+  const steps = stepsTo(lastContent, snap.content, isPasted)
+  for (const step of steps)
+    yield * exec(step)
+
+  yield * exec({
+    type: 'snap-finish',
+    content: snap.content,
+    snap,
+    index,
+    total,
+  })
+}
+
+export function *animateSteps(snapshots: Snapshot[]): Generator<AnimatorStep> {
+  const copy = [...snapshots]
+  const total = copy.length
+  let forcePause = false
+  for (let index = 0; index < copy.length; index++) {
     try {
-      try {
-        if (lastContent == null) {
-          lastContent = snap.content
-          yield * exec({
-            type: 'init',
-            content: lastContent,
-          })
+      const snap = copy[index]
+      const lastContent = copy[index - 1]?.content ?? null
+      if (lastContent == null) {
+        yield * exec({
+          type: 'init',
+          content: snap.content,
+        })
+        continue
+      }
+      yield * animateStep(index, total, snap, lastContent, forcePause)
+      forcePause = false
+    }
+    catch (command) {
+      yield { type: 'action-noop' }
+      if (isCommand(command)) {
+        if (command.type === 'command-stepBack') {
+          index -= 2
+          forcePause = true
           continue
         }
-
-        currentIndex = index
-        yield * exec({
-          type: 'snap-start',
-          snap,
-          initialContent: lastContent,
-          index: currentIndex,
-          total: copy.length,
-        })
-
-        const isPasted = snap.options?.paste
-
-        const steps = stepsTo(lastContent, snap.content, isPasted)
-        for (const step of steps)
-          yield * exec(step)
-
-        lastContent = snap.content
+        if (command.type === 'command-break')
+          break
       }
-      finally {
-        if (currentIndex) {
-          yield * exec({
-            type: 'snap-finish',
-            content: snap.content,
-            snap,
-            index: currentIndex,
-            total: copy.length,
-          })
-        }
-      }
-    }
-    catch (e) {
-      if (e instanceof ContinueSignal)
-        continue
-      if (e instanceof BreakSignal)
-        break
-      throw e
+      throw command
     }
   }
 }

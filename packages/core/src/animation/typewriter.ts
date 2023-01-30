@@ -1,4 +1,4 @@
-import type { AnimatorCommand, AnimatorStep, Snapshot, SnapshotOptions } from '../types'
+import type { AnimatorStep, Snapshot, SnapshotOptions } from '../types'
 import { getTimeout, randRange } from './timing'
 
 export function sleep(ms: number) {
@@ -13,7 +13,7 @@ export async function *typingAnimator(
   steps: Generator<AnimatorStep>,
 
   options: TypewriterOptions = {},
-): AsyncGenerator<AnimatorStep, void, AnimatorCommand | undefined> {
+): AsyncGenerator<AnimatorStep> {
   function getOptions(snap: Snapshot) {
     return {
       ...(options.defaults || {}),
@@ -24,6 +24,7 @@ export async function *typingAnimator(
   let currentStepOptions = options.defaults ?? {}
 
   for (const step of steps) {
+    const queue = [step]
     switch (step.type) {
       case 'init':
         break
@@ -34,8 +35,8 @@ export async function *typingAnimator(
 
           await sleep(wait !== undefined ? wait : randRange(700, 1000))
         }
-        if (currentStepOptions.pause)
-          yield { type: 'action-pause' }
+        if (currentStepOptions.pause || step.forcePause)
+          queue.push({ type: 'action-pause' })
         break
       case 'patch-start':
         if (step.index)
@@ -51,8 +52,15 @@ export async function *typingAnimator(
         await sleep(randRange(0, 5))
         break
     }
-    const command = yield step
-    if (command)
-      steps.next(command)
+
+    try {
+      for (const s of queue)
+        yield s
+    }
+    catch (e) {
+      const result = steps.throw(e)
+      if (!result.done)
+        yield result.value
+    }
   }
 }
