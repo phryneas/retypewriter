@@ -64,6 +64,10 @@ export class Snapshots extends Array<Snapshot> {
 
   typewriter(options?: TypewriterOptions) {
     return typingAnimator(this.steps(), {
+      defaults: {
+        ...this.defaults,
+        ...options?.defaults,
+      },
       ...options,
     })
   }
