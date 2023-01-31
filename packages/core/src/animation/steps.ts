@@ -87,7 +87,7 @@ function *exec(step: AnimatorStep): Generator<AnimatorStep> {
 }
 
 function isCommand(e: unknown): e is AnimatorCommand {
-  return !!e && typeof e === 'object' && 'type' in e && ['command-stepBack', 'command-break', 'command-pause'].includes(e.type as any)
+  return !!e && typeof e === 'object' && 'type' in e && ['command-stepBack', 'command-break', 'command-pause'].includes((e as any).type)
 }
 
 function* animateStep(index: number, total: number, snap: Snapshot, lastContent: string, forcePause: boolean): Generator<AnimatorStep> {
